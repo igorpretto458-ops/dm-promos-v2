@@ -1136,6 +1136,201 @@ function AbaCupons() {
   );
 }
 
+// ── Aba Visitas ────────────────────────────────────────────────────────────
+function AbaVisitas() {
+  const [visitas, setVisitas] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [gps, setGps] = useState(null);
+  const [gpsErro, setGpsErro] = useState(null);
+  const [fotoFile, setFotoFile] = useState(null);
+  const [fotoPreview, setFotoPreview] = useState(null);
+  const [dados, setDados] = useState({ restaurante:"", responsavel:"", observacoes:"", proxima_atividade:"" });
+
+  const inp = { border:"1.5px solid #E8E8E8", borderRadius:10, padding:"9px 12px", fontSize:13, background:"#FAFAFA", color:"#333", outline:"none", fontFamily:"inherit", width:"100%", boxSizing:"border-box" };
+  const lbl = { fontSize:11, fontWeight:700, color:"#999", marginBottom:4, display:"block", textTransform:"uppercase", letterSpacing:0.4 };
+
+  const carregarVisitas = useCallback(async () => {
+    setLoading(true);
+    const { data } = await supabase.from("visitas").select("*").order("created_at", { ascending: false });
+    setVisitas(data || []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { carregarVisitas(); }, [carregarVisitas]);
+
+  const pegarGPS = () => {
+    setGpsErro(null);
+    if (!navigator.geolocation) { setGpsErro("GPS não disponível neste dispositivo"); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => setGps({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => setGpsErro("Não foi possível obter localização. Verifique as permissões.")
+    );
+  };
+
+  const abrirForm = () => {
+    setDados({ restaurante:"", responsavel:"", observacoes:"", proxima_atividade:"" });
+    setFotoFile(null); setFotoPreview(null); setGps(null); setGpsErro(null);
+    setForm(true);
+    pegarGPS();
+  };
+
+  const onFoto = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setFotoFile(file);
+    const reader = new FileReader();
+    reader.onload = ev => setFotoPreview(ev.target.result);
+    reader.readAsDataURL(file);
+  };
+
+  const salvar = async () => {
+    if (!dados.restaurante.trim()) { alert("Informe o nome do restaurante."); return; }
+    setSalvando(true);
+    try {
+      let foto_url = null;
+      if (fotoFile) {
+        const ext = fotoFile.name.split(".").pop();
+        const path = `${Date.now()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("visitas-fotos").upload(path, fotoFile, { upsert: true });
+        if (!upErr) {
+          const { data: urlData } = supabase.storage.from("visitas-fotos").getPublicUrl(path);
+          foto_url = urlData.publicUrl;
+        }
+      }
+      const { error } = await supabase.from("visitas").insert({
+        restaurante: dados.restaurante.trim(),
+        responsavel: dados.responsavel.trim() || null,
+        observacoes: dados.observacoes.trim() || null,
+        proxima_atividade: dados.proxima_atividade.trim() || null,
+        latitude: gps?.lat || null,
+        longitude: gps?.lng || null,
+        foto_url,
+      });
+      if (error) { alert("Erro ao salvar: " + error.message); }
+      else { setForm(false); carregarVisitas(); }
+    } finally { setSalvando(false); }
+  };
+
+  const fmtData = (iso) => {
+    const d = new Date(iso);
+    return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit" });
+  };
+
+  return (
+    <div>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
+        <div style={{ fontSize:22, fontWeight:800, color:"#1A1A1A" }}>📍 Visitas</div>
+        <button onClick={abrirForm} style={{ padding:"9px 20px", borderRadius:10, border:"none", background:"#FF5000", color:"#fff", fontWeight:700, cursor:"pointer", fontSize:13 }}>
+          + Nova Visita
+        </button>
+      </div>
+
+      {form && (
+        <div onClick={() => setForm(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, padding:16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background:"#fff", borderRadius:24, padding:28, maxWidth:500, width:"100%", boxShadow:"0 20px 60px rgba(0,0,0,0.2)", maxHeight:"95vh", overflowY:"auto" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+              <span style={{ fontSize:16, fontWeight:800, color:"#1A1A1A" }}>📍 Registrar Visita</span>
+              <button onClick={() => setForm(false)} style={{ background:"none", border:"none", fontSize:22, cursor:"pointer", color:"#999" }}>×</button>
+            </div>
+
+            <div style={{ marginBottom:16 }}>
+              <label style={lbl}>Foto da visita</label>
+              {fotoPreview ? (
+                <div style={{ position:"relative", marginBottom:8 }}>
+                  <img src={fotoPreview} alt="preview" style={{ width:"100%", maxHeight:200, objectFit:"cover", borderRadius:12, border:"1.5px solid #E8E8E8" }} />
+                  <button onClick={() => { setFotoFile(null); setFotoPreview(null); }} style={{ position:"absolute", top:8, right:8, background:"rgba(0,0,0,0.6)", border:"none", borderRadius:20, color:"#fff", cursor:"pointer", padding:"3px 10px", fontSize:12 }}>Trocar</button>
+                </div>
+              ) : (
+                <label style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:8, padding:"24px", borderRadius:12, border:"2px dashed #E0E0E0", background:"#FAFAFA", cursor:"pointer" }}>
+                  <span style={{ fontSize:32 }}>📷</span>
+                  <span style={{ fontSize:13, color:"#888", fontWeight:600 }}>Tirar foto / Escolher imagem</span>
+                  <input type="file" accept="image/*" capture="camera" onChange={onFoto} style={{ display:"none" }} />
+                </label>
+              )}
+            </div>
+
+            <div style={{ marginBottom:16, padding:"10px 14px", borderRadius:10, background: gps ? "#E8F5E9" : gpsErro ? "#FFEBEE" : "#F5F5F5", border:`1.5px solid ${gps ? "#C8E6C9" : gpsErro ? "#FFCDD2" : "#E8E8E8"}` }}>
+              {gps ? (
+                <div style={{ fontSize:12, color:"#2E7D32", fontWeight:600 }}>✅ Localização capturada ({gps.lat.toFixed(5)}, {gps.lng.toFixed(5)})</div>
+              ) : gpsErro ? (
+                <div>
+                  <div style={{ fontSize:12, color:"#C62828", marginBottom:6 }}>⚠️ {gpsErro}</div>
+                  <button onClick={pegarGPS} style={{ fontSize:11, padding:"4px 10px", borderRadius:8, border:"1px solid #C62828", background:"transparent", color:"#C62828", cursor:"pointer" }}>Tentar novamente</button>
+                </div>
+              ) : (
+                <div style={{ fontSize:12, color:"#888" }}>⏳ Obtendo localização GPS...</div>
+              )}
+            </div>
+
+            <div style={{ marginBottom:14 }}>
+              <label style={lbl}>Restaurante *</label>
+              <input style={inp} placeholder="Nome do restaurante" value={dados.restaurante} onChange={e => setDados(d => ({...d, restaurante: e.target.value}))} />
+            </div>
+            <div style={{ marginBottom:14 }}>
+              <label style={lbl}>Responsável (opcional)</label>
+              <input style={inp} placeholder="Seu nome" value={dados.responsavel} onChange={e => setDados(d => ({...d, responsavel: e.target.value}))} />
+            </div>
+            <div style={{ marginBottom:14 }}>
+              <label style={lbl}>Observações da visita</label>
+              <textarea style={{ ...inp, minHeight:80, resize:"vertical" }} placeholder="O que foi observado..." value={dados.observacoes} onChange={e => setDados(d => ({...d, observacoes: e.target.value}))} />
+            </div>
+            <div style={{ marginBottom:20 }}>
+              <label style={lbl}>Próxima atividade</label>
+              <textarea style={{ ...inp, minHeight:60, resize:"vertical" }} placeholder="O que fazer na próxima visita..." value={dados.proxima_atividade} onChange={e => setDados(d => ({...d, proxima_atividade: e.target.value}))} />
+            </div>
+
+            <button onClick={salvar} disabled={salvando} style={{ width:"100%", padding:"12px", borderRadius:12, border:"none", background: salvando ? "#ccc" : "#FF5000", color:"#fff", fontWeight:800, fontSize:14, cursor: salvando ? "default" : "pointer" }}>
+              {salvando ? "Salvando..." : "✅ Registrar Visita"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ textAlign:"center", padding:"40px", color:"#999" }}>⏳ Carregando...</div>
+      ) : visitas.length === 0 ? (
+        <div style={{ textAlign:"center", padding:"60px 20px", color:"#BBB" }}>
+          <div style={{ fontSize:40, marginBottom:12 }}>📍</div>
+          <div style={{ fontSize:16, fontWeight:600 }}>Nenhuma visita registrada ainda</div>
+          <div style={{ fontSize:13, marginTop:6 }}>Clique em "+ Nova Visita" para começar</div>
+        </div>
+      ) : (
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          {visitas.map(v => (
+            <div key={v.id} style={{ background:"#fff", borderRadius:16, border:"1px solid #F0F0F0", overflow:"hidden", display:"flex" }}>
+              {v.foto_url ? (
+                <img src={v.foto_url} alt="visita" style={{ width:110, height:110, objectFit:"cover", flexShrink:0 }} />
+              ) : (
+                <div style={{ width:110, height:110, background:"#F5F5F5", display:"flex", alignItems:"center", justifyContent:"center", fontSize:28, flexShrink:0 }}>📷</div>
+              )}
+              <div style={{ padding:"14px 16px", flex:1, minWidth:0 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:4 }}>
+                  <div style={{ fontSize:14, fontWeight:800, color:"#1A1A1A" }}>{v.restaurante}</div>
+                  <div style={{ fontSize:11, color:"#aaa", whiteSpace:"nowrap", marginLeft:8 }}>{fmtData(v.created_at)}</div>
+                </div>
+                {v.responsavel && <div style={{ fontSize:12, color:"#888", marginBottom:4 }}>👤 {v.responsavel}</div>}
+                {v.latitude && <div style={{ fontSize:11, color:"#aaa", marginBottom:6 }}>📍 {v.latitude.toFixed(4)}, {v.longitude.toFixed(4)}</div>}
+                {v.observacoes && (
+                  <div style={{ fontSize:12, color:"#555", marginBottom:4, background:"#FAFAFA", borderRadius:8, padding:"6px 10px" }}>
+                    <span style={{ fontWeight:700, color:"#999", fontSize:10, textTransform:"uppercase" }}>Obs: </span>{v.observacoes}
+                  </div>
+                )}
+                {v.proxima_atividade && (
+                  <div style={{ fontSize:12, color:"#E65100", background:"#FFF3E0", borderRadius:8, padding:"5px 10px", display:"inline-block" }}>
+                    <span style={{ fontWeight:700, fontSize:10, textTransform:"uppercase" }}>Próxima: </span>{v.proxima_atividade}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── App principal ──────────────────────────────────────────────────────────
 export default function App() {
   const [lista, setLista]       = useState([]);
@@ -1222,7 +1417,7 @@ export default function App() {
             <div style={{ fontSize:11, color:"#FF5000", fontWeight:700, letterSpacing:1, textTransform:"uppercase" }}>Gestão de Promoções</div>
           </div>
           <div style={{ marginLeft:"auto", display:"flex", gap:4 }}>
-            {[["promocoes","🏷️ Promoções"],["marketing","📣 Marketing"],["dashboard","📊 Dashboard"]].map(([key, label]) => (
+            {[["promocoes","🏷️ Promoções"],["visitas","📍 Visitas"],["marketing","📣 Marketing"],["dashboard","📊 Dashboard"]].map(([key, label]) => (
               <button key={key} onClick={() => setAba(key)} style={tab(aba === key)}>{label}</button>
             ))}
           </div>
@@ -1238,6 +1433,9 @@ export default function App() {
         )}
         {erro && <div style={{ background:"#FFEBEE", color:"#C62828", padding:"12px 16px", borderRadius:12, marginBottom:16, fontSize:13 }}>{erro}</div>}
         {!loading && <>
+
+        {/* ── VISITAS ── */}
+        {aba === "visitas" && <AbaVisitas />}
 
         {/* ── MARKETING ── */}
         {aba === "marketing" && <AbaMarketing promos={lista} />}
