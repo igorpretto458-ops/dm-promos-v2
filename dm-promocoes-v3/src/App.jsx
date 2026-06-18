@@ -1580,33 +1580,54 @@ export default function App() {
     border:"1.5px solid #E8E8E8", borderRadius:10, padding:"9px 12px",
     fontSize:13, background:"#FAFAFA", color:"#333", outline:"none", fontFamily:"inherit",
   };
-  const tab = (active) => ({
-    padding:"8px 18px", borderRadius:10, border:"none", cursor:"pointer",
-    fontSize:13, fontWeight: active ? 700 : 500,
-    background: active ? "#FF5000" : "transparent",
-    color: active ? "#fff" : "#888",
-    transition:"all 0.15s",
-  });
+  const ABAS = [["promocoes","🏷️ Promoções"],["visitas","📍 Visitas"],["marketing","📣 Marketing"],["dashboard","📊 Dashboard"]];
 
   return (
-    <div style={{ minHeight:"100vh", background:"#F7F7F8", fontFamily:"'Inter','Segoe UI',sans-serif" }}>
+    <div style={{ minHeight:"100vh", background:"#F4F4F6", fontFamily:"'Inter','Segoe UI',sans-serif" }}>
 
-      {/* Header */}
-      <div style={{ background:"#fff", borderBottom:"1px solid #F0F0F0", padding:"0 24px" }}>
-        <div style={{ maxWidth:1100, margin:"0 auto", display:"flex", alignItems:"center", gap:16, paddingTop:16, paddingBottom:8 }}>
-          <div style={{ background:"#FF5000", borderRadius:12, width:38, height:38, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>🚀</div>
-          <div>
-            <div style={{ fontSize:17, fontWeight:800, color:"#1A1A1A" }}>Delivery Much</div>
-            <div style={{ fontSize:11, color:"#FF5000", fontWeight:700, letterSpacing:1, textTransform:"uppercase" }}>Gestão de Promoções</div>
+      {/* ── Header branco moderno ── */}
+      <div style={{ background:"#fff", borderBottom:"1px solid #EBEBEB", padding:"0 24px", position:"sticky", top:0, zIndex:100, boxShadow:"0 1px 0 #F0F0F0" }}>
+        <div style={{ maxWidth:1100, margin:"0 auto", display:"flex", alignItems:"center", height:60, gap:16 }}>
+
+          {/* Logo */}
+          <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+            <div style={{ background:"#FF5000", borderRadius:10, width:34, height:34, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>🚀</div>
+            <div>
+              <div style={{ fontSize:15, fontWeight:800, color:"#1A1A1A", lineHeight:1.1 }}>Delivery Much</div>
+              <div style={{ fontSize:10, color:"#FF5000", fontWeight:700, letterSpacing:0.8, textTransform:"uppercase" }}>Gestão de Promoções</div>
+            </div>
           </div>
-          <div style={{ marginLeft:"auto", display:"flex", gap:4 }}>
-            {[["promocoes","🏷️ Promoções"],["marketing","📣 Marketing"],["dashboard","📊 Dashboard"],["visitas","📍 Visitas"]].map(([key, label]) => (
-              <button key={key} onClick={() => setAba(key)} style={tab(aba === key)}>{label}</button>
+
+          {/* Divisor */}
+          <div style={{ width:1, height:28, background:"#EBEBEB", marginLeft:8 }} />
+
+          {/* Abas — desktop */}
+          <div style={{ display:"flex", gap:2, flex:1 }}>
+            {ABAS.map(([key, label]) => (
+              <button key={key} onClick={() => setAba(key)} style={{
+                padding:"6px 14px", borderRadius:8, border:"none", cursor:"pointer",
+                fontSize:13, fontWeight: aba === key ? 700 : 400,
+                background: aba === key ? "#FFF0EB" : "transparent",
+                color: aba === key ? "#FF5000" : "#666",
+                position:"relative", transition:"all 0.12s",
+              }}>
+                {label}
+                {aba === key && <div style={{ position:"absolute", bottom:-14, left:"50%", transform:"translateX(-50%)", width:24, height:2, background:"#FF5000", borderRadius:2 }} />}
+              </button>
             ))}
+          </div>
+
+          {/* Badge resumo */}
+          <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0 }}>
+            <div style={{ fontSize:12, color:"#888" }}>
+              <span style={{ fontWeight:700, color:"#1A1A1A" }}>{stats.ativas}</span> ativas &nbsp;·&nbsp;
+              <span style={{ fontWeight:700, color:"#FF9800" }}>{stats.pausadas}</span> pausadas
+            </div>
           </div>
         </div>
       </div>
 
+      {/* ── Conteúdo ── */}
       <div style={{ maxWidth:1100, margin:"0 auto", padding:"24px" }}>
         {loading && (
           <div style={{ textAlign:"center", padding:"60px 20px" }}>
@@ -1892,6 +1913,36 @@ export default function App() {
           onDelete={handleDelete}
         />
       )}
+
+      {/* ── Tab bar mobile ── */}
+      <div style={{
+        display:"none",
+        position:"fixed", bottom:0, left:0, right:0,
+        background:"#fff", borderTop:"1px solid #EBEBEB",
+        padding:"6px 0 max(6px, env(safe-area-inset-bottom))",
+        zIndex:200,
+        "@media(maxWidth:640px)": { display:"flex" },
+      }} className="mobile-tabs">
+        {ABAS.map(([key, label]) => {
+          const [icon, txt] = label.split(" ");
+          return (
+            <button key={key} onClick={() => setAba(key)} style={{
+              flex:1, border:"none", background:"transparent", cursor:"pointer",
+              display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"4px 0",
+              color: aba === key ? "#FF5000" : "#999",
+            }}>
+              <span style={{ fontSize:18 }}>{icon}</span>
+              <span style={{ fontSize:10, fontWeight: aba === key ? 700 : 400 }}>{txt}</span>
+            </button>
+          );
+        })}
+      </div>
+      <style>{`
+        @media (max-width: 640px) {
+          .mobile-tabs { display: flex !important; }
+          body { padding-bottom: 60px; }
+        }
+      `}</style>
     </div>
   );
 }
