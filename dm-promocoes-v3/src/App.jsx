@@ -465,6 +465,8 @@ function Modal({ p, modo, onClose, onSave, onDelete }) {
                 <select style={inp} value={form.categoria || ""} onChange={e => set("categoria", e.target.value || null)}>
                   <option value="">— Nenhuma —</option>
                   <option value="Orçamento Franqueadora">Orçamento Franqueadora</option>
+                  <option value="Promos Fixas">Promos Fixas</option>
+                  <option value="Combo Coca-Cola">Combo Coca-Cola</option>
                 </select>
               </div>
               <div>
@@ -664,6 +666,10 @@ function AbaMarketing({ promos }) {
   const [acoes, setAcoes] = useState({});       // chave: `${promoId}_${dataISO}` → dados de marketing
   const [modalItem, setModalItem] = useState(null);
   const [diaFiltro, setDiaFiltro] = useState(null); // null = todos
+  const [categoriaFMkt, setCategoriaFMkt] = useState("TODAS");
+
+  // Promos filtradas por categoria
+  const promosFiltradas = categoriaFMkt === "TODAS" ? promos : promos.filter(p => p.categoria === categoriaFMkt);
 
   // Dias da semana atual
   const dias = Array.from({length:7}, (_,i) => addDias(semana, i));
@@ -672,7 +678,7 @@ function AbaMarketing({ promos }) {
   const grade = dias.map((d,i) => ({
     data: d,
     diaSem: i,
-    promos: promos.filter(p => promoNoDia(p, d.getDay())),
+    promos: promosFiltradas.filter(p => promoNoDia(p, d.getDay())),
   }));
 
   const chave = (promoId, data) => `${promoId}_${data.toISOString().split("T")[0]}`;
@@ -735,6 +741,20 @@ function AbaMarketing({ promos }) {
             <div style={{ fontSize:26, fontWeight:800, color:item.color, marginTop:4 }}>{item.val}</div>
             <div style={{ fontSize:11, color:"#777", fontWeight:600, marginTop:2 }}>{item.label}</div>
           </div>
+        ))}
+      </div>
+
+      {/* Filtro por categoria */}
+      <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap", alignItems:"center" }}>
+        <span style={{ fontSize:12, color:"#888", fontWeight:600 }}>Categoria:</span>
+        {[["TODAS","Todas"],["Orçamento Franqueadora","🏷 Orçamento Franq."],["Promos Fixas","📌 Promos Fixas"],["Combo Coca-Cola","🥤 Combo Coca-Cola"]].map(([val, label]) => (
+          <button key={val} onClick={() => setCategoriaFMkt(val)} style={{
+            padding:"5px 12px", borderRadius:20, border:"1.5px solid",
+            borderColor: categoriaFMkt === val ? "#FF5000":"#E0E0E0",
+            background: categoriaFMkt === val ? "#FF5000":"#fff",
+            color: categoriaFMkt === val ? "#fff":"#888",
+            fontSize:12, fontWeight:700, cursor:"pointer",
+          }}>{label}</button>
         ))}
       </div>
 
@@ -1757,6 +1777,8 @@ export default function App() {
               <select value={categoriaF} onChange={e => setCategoriaF(e.target.value)} style={{ ...inp, minWidth:160 }}>
                 <option value="TODAS">Todas as Categorias</option>
                 <option value="Orçamento Franqueadora">🏷 Orçamento Franqueadora</option>
+                <option value="Promos Fixas">📌 Promos Fixas</option>
+                <option value="Combo Coca-Cola">🥤 Combo Coca-Cola</option>
               </select>
               {(busca || statusF !== "TODOS" || cidadeF !== "TODAS" || tipoF !== "TODOS" || categoriaF !== "TODAS") && (
                 <button onClick={() => { setBusca(""); setStatusF("TODOS"); setCidadeF("TODAS"); setTipoF("TODOS"); setCategoriaF("TODAS"); }}
