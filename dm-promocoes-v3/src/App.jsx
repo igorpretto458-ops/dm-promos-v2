@@ -1136,6 +1136,177 @@ function AbaCupons() {
   );
 }
 
+// ── Dashboard Visitas ─────────────────────────────────────────────────────
+function DashboardVisitas() {
+  const [visitas, setVisitas] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.from("visitas").select("*").order("created_at", { ascending: false }).then(({ data }) => {
+      setVisitas(data || []);
+      setLoading(false);
+    });
+  }, []);
+
+  if (loading) return <div style={{ textAlign:"center", padding:32, color:"#999" }}>⏳ Carregando visitas...</div>;
+  if (visitas.length === 0) return (
+    <div style={{ background:"#fff", borderRadius:16, border:"1px solid #F0F0F0", padding:32, textAlign:"center", color:"#bbb", marginTop:24 }}>
+      <div style={{ fontSize:32, marginBottom:8 }}>📍</div>
+      <div style={{ fontSize:14, fontWeight:600 }}>Nenhuma visita registrada ainda</div>
+      <div style={{ fontSize:12, marginTop:4 }}>Registre visitas na aba Visitas para ver o dashboard</div>
+    </div>
+  );
+
+  const DIAS_LABEL = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+  const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+
+  const restaurantesUnicos = [...new Set(visitas.map(v => v.restaurante))];
+
+  const visitCount = {};
+  visitas.forEach(v => { visitCount[v.restaurante] = (visitCount[v.restaurante] || 0) + 1; });
+  const maisVisitados = Object.entries(visitCount).sort((a,b) => b[1]-a[1]).slice(0,6);
+  const maxVisitas = maisVisitados[0]?.[1] || 1;
+
+  const diasCount = Array(7).fill(0);
+  visitas.forEach(v => { diasCount[new Date(v.created_at).getDay()]++; });
+  const maxDia = Math.max(...diasCount, 1);
+
+  const pendentes = visitas.filter(v => v.proxima_atividade).slice(0, 6);
+
+  const agora = Date.now();
+  const semRecente = restaurantesUnicos.filter(r => {
+    const ultima = visitas.filter(v => v.restaurante === r).sort((a,b) => new Date(b.created_at)-new Date(a.created_at))[0];
+    return ultima && (agora - new Date(ultima.created_at)) > 30*24*60*60*1000;
+  });
+
+  const mesMap = {};
+  visitas.forEach(v => {
+    const d = new Date(v.created_at);
+    const k = `${MESES[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
+    mesMap[k] = (mesMap[k] || 0) + 1;
+  });
+  const meses = Object.entries(mesMap).slice(-6);
+  const maxMes = Math.max(...meses.map(m => m[1]), 1);
+
+  const respMap = {};
+  visitas.filter(v => v.responsavel).forEach(v => { respMap[v.responsavel] = (respMap[v.responsavel] || 0) + 1; });
+  const porResp = Object.entries(respMap).sort((a,b) => b[1]-a[1]).slice(0,5);
+  const maxResp = porResp[0]?.[1] || 1;
+
+  const fmtData = (iso) => new Date(iso).toLocaleDateString("pt-BR");
+  const barBg = { height:6, borderRadius:4, background:"#F0F0F0", overflow:"hidden", marginTop:4 };
+  const barFill = (pct, color) => ({ height:"100%", width:`${Math.max(pct*100,2)}%`, background:color, borderRadius:4, transition:"width 0.4s" });
+
+  return (
+    <div style={{ marginTop:28 }}>
+      <div style={{ fontSize:16, fontWeight:700, color:"#1A1A1A", marginBottom:16 }}>📍 Visitas — Resumo</div>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))", gap:12, marginBottom:20 }}>
+        {[
+          { label:"Total de visitas", val:visitas.length, icon:"📊", color:"#2196F3", bg:"#E3F2FD" },
+          { label:"Restaurantes visitados", val:restaurantesUnicos.length, icon:"🏪", color:"#9C27B0", bg:"#F3E5F5" },
+          { label:"Pendências ativas", val:pendentes.length, icon:"📋", color:"#FF9800", bg:"#FFF3E0" },
+          { label:"Sem visita (30d)", val:semRecente.length, icon:"⚠️", color:"#F44336", bg:"#FFEBEE" },
+        ].map(item => (
+          <div key={item.label} style={{ background:item.bg, borderRadius:14, padding:"14px 16px" }}>
+            <div style={{ fontSize:18 }}>{item.icon}</div>
+            <div style={{ fontSize:24, fontWeight:800, color:item.color, marginTop:4 }}>{item.val}</div>
+            <div style={{ fontSize:10, color:"#666", fontWeight:600, marginTop:2, lineHeight:1.3 }}>{item.label}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16 }}>
+        <div style={{ background:"#fff", borderRadius:16, padding:"18px 20px", border:"1px solid #F0F0F0" }}>
+          <div style={{ fontSize:13, fontWeight:700, color:"#1A1A1A", marginBottom:14 }}>🏆 Mais visitados</div>
+          {maisVisitados.map(([rest, cnt], i) => (
+            <div key={rest} style={{ marginBottom:10 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:2 }}>
+                <span style={{ color:"#333", fontWeight: i===0 ? 700:400 }}>{rest}</span>
+                <span style={{ color:"#FF5000", fontWeight:700 }}>{cnt}</span>
+              </div>
+              <div style={barBg}><div style={barFill(cnt/maxVisitas, i===0?"#FF5000":"#FFB89A")} /></div>
+            </div>
+          ))}
+        </div>
+        <div style={{ background:"#fff", borderRadius:16, padding:"18px 20px", border:"1px solid #F0F0F0" }}>
+          <div style={{ fontSize:13, fontWeight:700, color:"#1A1A1A", marginBottom:14 }}>📅 Dias da semana</div>
+          <div style={{ display:"flex", alignItems:"flex-end", gap:6, height:80 }}>
+            {diasCount.map((cnt, i) => (
+              <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+                <div style={{ fontSize:9, color:"#FF5000", fontWeight:700, visibility: cnt>0?"visible":"hidden" }}>{cnt}</div>
+                <div style={{ width:"100%", background: cnt>0?"#FF5000":"#F0F0F0", borderRadius:"4px 4px 0 0", height: cnt>0 ? `${Math.max((cnt/maxDia)*60,6)}px` : "6px" }} />
+                <div style={{ fontSize:9, color:"#888", fontWeight:600 }}>{DIAS_LABEL[i]}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16 }}>
+        <div style={{ background:"#fff", borderRadius:16, padding:"18px 20px", border:"1px solid #F0F0F0" }}>
+          <div style={{ fontSize:13, fontWeight:700, color:"#1A1A1A", marginBottom:14 }}>📈 Visitas por mês</div>
+          {meses.length === 0
+            ? <div style={{ fontSize:12, color:"#bbb" }}>Sem dados ainda</div>
+            : meses.map(([mes, cnt]) => (
+              <div key={mes} style={{ marginBottom:10 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:2 }}>
+                  <span style={{ color:"#333" }}>{mes}</span>
+                  <span style={{ color:"#2196F3", fontWeight:700 }}>{cnt}</span>
+                </div>
+                <div style={barBg}><div style={barFill(cnt/maxMes, "#2196F3")} /></div>
+              </div>
+            ))
+          }
+        </div>
+        <div style={{ background:"#fff", borderRadius:16, padding:"18px 20px", border:"1px solid #F0F0F0" }}>
+          <div style={{ fontSize:13, fontWeight:700, color:"#1A1A1A", marginBottom:14 }}>👤 Por responsável</div>
+          {porResp.length === 0
+            ? <div style={{ fontSize:12, color:"#bbb" }}>Nenhum responsável registrado</div>
+            : porResp.map(([resp, cnt]) => (
+              <div key={resp} style={{ marginBottom:10 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:2 }}>
+                  <span style={{ color:"#333" }}>{resp}</span>
+                  <span style={{ color:"#9C27B0", fontWeight:700 }}>{cnt}</span>
+                </div>
+                <div style={barBg}><div style={barFill(cnt/maxResp, "#9C27B0")} /></div>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+        <div style={{ background:"#fff", borderRadius:16, padding:"18px 20px", border:"1px solid #F0F0F0" }}>
+          <div style={{ fontSize:13, fontWeight:700, color:"#1A1A1A", marginBottom:14 }}>📋 Próximas atividades</div>
+          {pendentes.length === 0
+            ? <div style={{ fontSize:12, color:"#bbb" }}>Nenhuma pendência registrada</div>
+            : pendentes.map(v => (
+              <div key={v.id} style={{ marginBottom:10, paddingBottom:10, borderBottom:"1px solid #F5F5F5" }}>
+                <div style={{ fontSize:12, fontWeight:700, color:"#333" }}>{v.restaurante}</div>
+                <div style={{ fontSize:11, color:"#E65100", background:"#FFF3E0", borderRadius:6, padding:"3px 8px", marginTop:4, display:"inline-block" }}>{v.proxima_atividade}</div>
+                <div style={{ fontSize:10, color:"#bbb", marginTop:3 }}>{fmtData(v.created_at)}</div>
+              </div>
+            ))
+          }
+        </div>
+        <div style={{ background:"#fff", borderRadius:16, padding:"18px 20px", border:"1px solid #F0F0F0" }}>
+          <div style={{ fontSize:13, fontWeight:700, color:"#1A1A1A", marginBottom:14 }}>⚠️ Sem visita há +30 dias</div>
+          {semRecente.length === 0
+            ? <div style={{ fontSize:12, color:"#4CAF50", fontWeight:600 }}>✅ Todos visitados recentemente!</div>
+            : semRecente.slice(0,6).map(r => {
+              const ultima = visitas.filter(v => v.restaurante === r).sort((a,b) => new Date(b.created_at)-new Date(a.created_at))[0];
+              const dias = Math.floor((agora - new Date(ultima.created_at)) / (24*60*60*1000));
+              return (
+                <div key={r} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, paddingBottom:8, borderBottom:"1px solid #F5F5F5" }}>
+                  <div style={{ fontSize:12, color:"#333" }}>{r}</div>
+                  <span style={{ fontSize:10, background:"#FFEBEE", color:"#C62828", padding:"2px 8px", borderRadius:10, fontWeight:700, whiteSpace:"nowrap" }}>{dias}d atrás</span>
+                </div>
+              );
+            })
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Aba Visitas ────────────────────────────────────────────────────────────
 function AbaVisitas() {
   const [visitas, setVisitas] = useState([]);
@@ -1521,6 +1692,7 @@ export default function App() {
                 ) : null;
               })}
             </div>
+            <DashboardVisitas />
           </div>
         )}
 
