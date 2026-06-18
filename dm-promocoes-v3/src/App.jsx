@@ -1642,7 +1642,7 @@ export default function App() {
         {aba === "visitas" && <AbaVisitas />}
 
         {/* ── MARKETING ── */}
-        {aba === "marketing" && <AbaMarketing promos={lista} />}
+        {aba === "marketing" && <AbaMarketing promos={lista.filter(p => p.status === "ATIVA")} />}
 
         {/* ── DASHBOARD ── */}
         {aba === "dashboard" && (
