@@ -15,6 +15,7 @@ function dbToApp(p) {
     incRestaurante: p.inc_restaurante, incFranqueadora: p.inc_franqueadora,
     incLvto: p.inc_lvto, incTotal: p.inc_total,
     responsavel: p.responsavel, cidade: p.cidade, obs: p.obs,
+    categoria: p.categoria || null,
   };
 }
 
@@ -27,6 +28,7 @@ function appToDB(p) {
     inc_restaurante: p.incRestaurante || 0, inc_franqueadora: p.incFranqueadora || 0,
     inc_lvto: p.incLvto || 0, inc_total: p.incTotal || 0,
     responsavel: p.responsavel, cidade: p.cidade, obs: p.obs,
+    categoria: p.categoria || null,
   };
 }
 
@@ -234,6 +236,7 @@ function Card({ p, onClick }) {
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
         <span style={{ fontSize:11, background:"#F5F5F5", color:"#555", padding:"3px 8px", borderRadius:8, fontWeight:600 }}>📅 {p.recorrencia}</span>
         <span style={{ fontSize:11, background:"#F5F5F5", color:"#555", padding:"3px 8px", borderRadius:8, fontWeight:600 }}>📍 {p.cidade}</span>
+        {p.categoria && <span style={{ fontSize:11, background:"#EDE7F6", color:"#6A1B9A", padding:"3px 8px", borderRadius:8, fontWeight:700 }}>🏷 {p.categoria}</span>}
         {p.qtd && <span style={{ fontSize:11, background:"#E3F2FD", color:"#1565C0", padding:"3px 8px", borderRadius:8, fontWeight:700 }}>📦 {p.qtd} un.</span>}
         {(() => { const u=(p.incRestaurante||0)+(p.incFranqueadora||0)+(p.incLvto||0); const prev=p.qtd?u*p.qtd:null; return u>0?(<span style={{ fontSize:11, background:"#FFF3E0", color:"#E65100", padding:"3px 8px", borderRadius:8, fontWeight:600 }}>💰 {fmt(u)}/un{prev?` · Prev. ${fmt(prev)}`:""}</span>):null; })()}
       </div>
@@ -246,7 +249,7 @@ const EMPTY = {
   id:"", restaurante:"", tipo:"DE/POR", produto:"", precoNormal:"", precoPromo:"",
   recorrencia:"SEMANAL", dias:[], qtd:"", status:"ATIVA",
   incRestaurante:"", incFranqueadora:"", incLvto:"", incTotal:0,
-  responsavel:"", cidade:"Livramento", obs:"",
+  responsavel:"", cidade:"Livramento", obs:"", categoria:null,
 };
 
 function Modal({ p, modo, onClose, onSave, onDelete }) {
@@ -455,6 +458,13 @@ function Modal({ p, modo, onClose, onSave, onDelete }) {
                   <option>Livramento</option>
                   <option>São Gabriel</option>
                   <option>Orçamento</option>
+                </select>
+              </div>
+              <div>
+                <label style={lbl}>Categoria</label>
+                <select style={inp} value={form.categoria || ""} onChange={e => set("categoria", e.target.value || null)}>
+                  <option value="">— Nenhuma —</option>
+                  <option value="Orçamento Franqueadora">Orçamento Franqueadora</option>
                 </select>
               </div>
               <div>
@@ -1518,10 +1528,11 @@ export default function App() {
   }, []);
 
   useEffect(() => { carregarPromos(); }, [carregarPromos]);
-  const [busca, setBusca]       = useState("");
-  const [statusF, setStatusF]   = useState("TODOS");
-  const [cidadeF, setCidadeF]   = useState("TODAS");
-  const [tipoF, setTipoF]       = useState("TODOS");
+  const [busca, setBusca]         = useState("");
+  const [statusF, setStatusF]     = useState("TODOS");
+  const [cidadeF, setCidadeF]     = useState("TODAS");
+  const [tipoF, setTipoF]         = useState("TODOS");
+  const [categoriaF, setCategoriaF] = useState("TODAS");
   const [modal, setModal]       = useState(null); // { p, modo }
   const [aba, setAba]           = useState("promocoes");
   const [subAba, setSubAba]     = useState("promos"); // "promos" | "cupons"
@@ -1532,8 +1543,9 @@ export default function App() {
     return (!q || p.restaurante.toLowerCase().includes(q) || p.produto.toLowerCase().includes(q) || p.id.toLowerCase().includes(q))
       && (statusF === "TODOS" || p.status === statusF)
       && (cidadeF === "TODAS" || p.cidade === cidadeF)
-      && (tipoF   === "TODOS" || p.tipo   === tipoF);
-  }), [lista, busca, statusF, cidadeF, tipoF]);
+      && (tipoF      === "TODOS" || p.tipo      === tipoF)
+      && (categoriaF === "TODAS" || p.categoria === categoriaF);
+  }), [lista, busca, statusF, cidadeF, tipoF, categoriaF]);
 
   const stats = useMemo(() => ({
     ativas:           lista.filter(p => p.status === "ATIVA").length,
@@ -1742,8 +1754,12 @@ export default function App() {
                 <option value="ENTREGA PROMOCIONAL">📦 Entrega Promo</option>
                 <option value="COMBO COCA-COLA">🥤 Combo Coca-Cola</option>
               </select>
-              {(busca || statusF !== "TODOS" || cidadeF !== "TODAS" || tipoF !== "TODOS") && (
-                <button onClick={() => { setBusca(""); setStatusF("TODOS"); setCidadeF("TODAS"); setTipoF("TODOS"); }}
+              <select value={categoriaF} onChange={e => setCategoriaF(e.target.value)} style={{ ...inp, minWidth:160 }}>
+                <option value="TODAS">Todas as Categorias</option>
+                <option value="Orçamento Franqueadora">🏷 Orçamento Franqueadora</option>
+              </select>
+              {(busca || statusF !== "TODOS" || cidadeF !== "TODAS" || tipoF !== "TODOS" || categoriaF !== "TODAS") && (
+                <button onClick={() => { setBusca(""); setStatusF("TODOS"); setCidadeF("TODAS"); setTipoF("TODOS"); setCategoriaF("TODAS"); }}
                   style={{ ...inp, cursor:"pointer", color:"#FF5000", fontWeight:700, background:"#FFF3EE", border:"1.5px solid #FFD0B8" }}>
                   Limpar
                 </button>
