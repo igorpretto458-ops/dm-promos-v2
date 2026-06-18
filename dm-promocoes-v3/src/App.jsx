@@ -1417,7 +1417,7 @@ export default function App() {
             <div style={{ fontSize:11, color:"#FF5000", fontWeight:700, letterSpacing:1, textTransform:"uppercase" }}>Gestão de Promoções</div>
           </div>
           <div style={{ marginLeft:"auto", display:"flex", gap:4 }}>
-            {[["promocoes","🏷️ Promoções"],["visitas","📍 Visitas"],["marketing","📣 Marketing"],["dashboard","📊 Dashboard"]].map(([key, label]) => (
+            {[["promocoes","🏷️ Promoções"],["marketing","📣 Marketing"],["dashboard","📊 Dashboard"],["visitas","📍 Visitas"]].map(([key, label]) => (
               <button key={key} onClick={() => setAba(key)} style={tab(aba === key)}>{label}</button>
             ))}
           </div>
