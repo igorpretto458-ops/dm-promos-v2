@@ -1558,6 +1558,48 @@ export default function App() {
   const [subAba, setSubAba]     = useState("promos"); // "promos" | "cupons"
   const [layout, setLayout]     = useState("grid"); // "grid" | "lista"
 
+  // ── Bulk actions ──
+  const [bulkMode, setBulkMode]         = useState(false);
+  const [bulkSelected, setBulkSelected] = useState(new Set());
+  const [bulkLoading, setBulkLoading]   = useState(false);
+
+  const toggleBulkMode = () => { setBulkMode(v => !v); setBulkSelected(new Set()); };
+
+  const toggleBulkItem = (id) => setBulkSelected(prev => {
+    const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next;
+  });
+
+  const toggleBulkAll = (ids) => setBulkSelected(prev =>
+    prev.size === ids.length ? new Set() : new Set(ids)
+  );
+
+  const handleBulkStatus = async (novoStatus) => {
+    if (!bulkSelected.size) return;
+    setBulkLoading(true);
+    const { error } = await supabase.from("promocoes").update({ status: novoStatus }).in("id", [...bulkSelected]);
+    if (error) alert("Erro: " + error.message);
+    else { await carregarPromos(); setBulkSelected(new Set()); }
+    setBulkLoading(false);
+  };
+
+  const handleBulkDelete = async () => {
+    if (!bulkSelected.size) return;
+    if (!window.confirm(`Excluir ${bulkSelected.size} promoção(ões)? Essa ação não pode ser desfeita.`)) return;
+    setBulkLoading(true);
+    const { error } = await supabase.from("promocoes").delete().in("id", [...bulkSelected]);
+    if (error) alert("Erro: " + error.message);
+    else { await carregarPromos(); setBulkSelected(new Set()); setBulkMode(false); }
+    setBulkLoading(false);
+  };
+
+  const handleBulkExport = () => {
+    const sel = filtered.filter(p => bulkSelected.has(p.id));
+    const header = ["ID","Restaurante","Produto","Tipo","Status","Cidade","Categoria","Dias","Preço Normal","Preço Promo"].join(";");
+    const rows = sel.map(p => [p.id,p.restaurante,p.produto,p.tipo,p.status,p.cidade,p.categoria||"",formatDias(p.dias),p.precoNormal||"",p.precoPromo||""].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(";"));
+    const blob = new Blob(["\uFEFF"+[header,...rows].join("\n")],{type:"text/csv;charset=utf-8;"});
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "promocoes.csv"; a.click();
+  };
+
   const filtered = useMemo(() => lista.filter(p => {
     const q = busca.toLowerCase();
     return (!q || p.restaurante.toLowerCase().includes(q) || p.produto.toLowerCase().includes(q) || p.id.toLowerCase().includes(q))
@@ -1792,22 +1834,34 @@ export default function App() {
               </button>
             </div>
 
-            {/* Contador + toggle de layout */}
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+
+            {/* Contador + toggle de layout + bulk */}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, gap:10 }}>
               <div style={{ fontSize:13, color:"#888" }}>
                 {filtered.length} promoção{filtered.length !== 1 ? "ões" : ""} encontrada{filtered.length !== 1 ? "s" : ""}
+                {bulkMode && bulkSelected.size > 0 && <span style={{ marginLeft:10, color:"#FF5000", fontWeight:700 }}>· {bulkSelected.size} selecionada{bulkSelected.size!==1?"s":""}</span>}
               </div>
-              <div style={{ display:"flex", background:"#F0F0F0", borderRadius:10, padding:3, gap:2 }}>
-                {[["grid","⊞"],["lista","☰"]].map(([key, icon]) => (
-                  <button key={key} onClick={() => setLayout(key)} style={{
-                    width:34, height:30, borderRadius:8, border:"none", cursor:"pointer", fontSize:15,
-                    background: layout===key ? "#fff" : "transparent",
-                    color: layout===key ? "#FF5000" : "#aaa",
-                    fontWeight: layout===key ? 700 : 400,
-                    boxShadow: layout===key ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-                    transition:"all 0.15s",
-                  }}>{icon}</button>
-                ))}
+              <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                <button onClick={toggleBulkMode} style={{
+                  padding:"6px 14px", borderRadius:8, fontSize:13, fontWeight:700, cursor:"pointer",
+                  border: bulkMode ? "1.5px solid #FF5000" : "1.5px solid #E0E0E0",
+                  background: bulkMode ? "#FF5000" : "#fff",
+                  color: bulkMode ? "#fff" : "#888",
+                }}>
+                  {bulkMode ? "✕ Cancelar" : "☑ Selecionar"}
+                </button>
+                <div style={{ display:"flex", background:"#F0F0F0", borderRadius:10, padding:3, gap:2 }}>
+                  {[["grid","⊞"],["lista","☰"]].map(([key, icon]) => (
+                    <button key={key} onClick={() => { setLayout(key); if(key==="grid"){ setBulkMode(false); setBulkSelected(new Set()); } }} style={{
+                      width:34, height:30, borderRadius:8, border:"none", cursor:"pointer", fontSize:15,
+                      background: layout===key ? "#fff" : "transparent",
+                      color: layout===key ? "#FF5000" : "#aaa",
+                      fontWeight: layout===key ? 700 : 400,
+                      boxShadow: layout===key ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                      transition:"all 0.15s",
+                    }}>{icon}</button>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -1823,7 +1877,8 @@ export default function App() {
             ) : (
               <div style={{ background:"#fff", borderRadius:16, border:"1px solid #F0F0F0", overflow:"hidden" }}>
                 {/* Cabeçalho da lista */}
-                <div style={{ display:"grid", gridTemplateColumns:"2fr 2fr 100px 120px 100px 110px 60px", gap:0, background:"#FAFAFA", padding:"10px 16px", borderBottom:"1px solid #F0F0F0" }}>
+                <div style={{ display:"grid", gridTemplateColumns: bulkMode ? "36px 2fr 2fr 100px 120px 100px 110px 60px" : "2fr 2fr 100px 120px 100px 110px 60px", gap:0, background:"#FAFAFA", padding:"10px 16px", borderBottom:"1px solid #F0F0F0", alignItems:"center" }}>
+                  {bulkMode && <input type="checkbox" checked={bulkSelected.size===filtered.length&&filtered.length>0} onChange={()=>toggleBulkAll(filtered.map(p=>p.id))} style={{width:16,height:16,cursor:"pointer",accentColor:"#FF5000"}} />}
                   {["Restaurante","Produto / Tipo","Status","Dias","Preço normal","Preço promo",""].map((h,i) => (
                     <div key={i} style={{ fontSize:10, fontWeight:700, color:"#bbb", textTransform:"uppercase", letterSpacing:0.4 }}>{h}</div>
                   ))}
@@ -1833,16 +1888,18 @@ export default function App() {
                   const cfg = STATUS_CONFIG[p.status] || STATUS_CONFIG[""];
                   const tipoInfo = TIPO_CONFIG[p.tipo] || { icon:"🎯" };
                   const desc = p.precoNormal && p.precoPromo ? Math.round(((p.precoNormal-p.precoPromo)/p.precoNormal)*100) : null;
+                  const isSel = bulkSelected.has(p.id);
                   return (
-                    <div key={p.id} onClick={() => setModal({ p, modo:"ver" })} style={{
-                      display:"grid", gridTemplateColumns:"2fr 2fr 100px 120px 100px 110px 60px",
-                      gap:0, padding:"12px 16px", cursor:"pointer",
-                      background: idx%2===0 ? "#fff":"#FAFAFA",
-                      borderBottom:"1px solid #F5F5F5",
+                    <div key={p.id} onClick={() => bulkMode ? toggleBulkItem(p.id) : setModal({ p, modo:"ver" })} style={{
+                      display:"grid", gridTemplateColumns: bulkMode ? "36px 2fr 2fr 100px 120px 100px 110px 60px" : "2fr 2fr 100px 120px 100px 110px 60px",
+                      gap:0, padding:"12px 16px", cursor:"pointer", alignItems:"center",
+                      background: isSel ? "#FFF5F2" : idx%2===0 ? "#fff":"#FAFAFA",
+                      borderBottom: isSel ? "1px solid #FFD0B8" : "1px solid #F5F5F5",
                       transition:"background 0.1s",
                     }}
-                      onMouseEnter={e => e.currentTarget.style.background="#FFF5F2"}
-                      onMouseLeave={e => e.currentTarget.style.background=idx%2===0?"#fff":"#FAFAFA"}>
+                      onMouseEnter={e => { if(!isSel) e.currentTarget.style.background="#FFF5F2"; }}
+                      onMouseLeave={e => { if(!isSel) e.currentTarget.style.background=idx%2===0?"#fff":"#FAFAFA"; }}>
+                      {bulkMode && <input type="checkbox" checked={isSel} onChange={()=>toggleBulkItem(p.id)} onClick={e=>e.stopPropagation()} style={{width:16,height:16,cursor:"pointer",accentColor:"#FF5000"}} />}
                       {/* Restaurante */}
                       <div style={{ display:"flex", flexDirection:"column", justifyContent:"center", gap:2, paddingRight:8 }}>
                         <div style={{ fontSize:13, fontWeight:700, color:"#111", lineHeight:1.2 }}>{p.restaurante}</div>
@@ -1888,14 +1945,41 @@ export default function App() {
                       </div>
                       {/* Ação */}
                       <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end" }}>
-                        <button onClick={e => { e.stopPropagation(); setModal({ p, modo:"ver" }); }} style={{
+                        {!bulkMode && <button onClick={e => { e.stopPropagation(); setModal({ p, modo:"ver" }); }} style={{
                           fontSize:11, fontWeight:700, padding:"5px 10px", borderRadius:8,
                           border:"1.5px solid #FF5000", background:"transparent", color:"#FF5000", cursor:"pointer",
-                        }}>Ver</button>
+                        }}>Ver</button>}
                       </div>
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+
+            {/* ── Barra flutuante bulk actions ── */}
+            {bulkMode && bulkSelected.size > 0 && (
+              <div style={{
+                position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)",
+                background:"#1A1A1A", borderRadius:16, padding:"12px 20px",
+                display:"flex", alignItems:"center", gap:12, zIndex:300,
+                boxShadow:"0 8px 32px rgba(0,0,0,0.32)", flexWrap:"wrap", maxWidth:"90vw",
+              }}>
+                <span style={{ fontSize:14, fontWeight:600, color:"#fff", marginRight:4 }}>
+                  {bulkSelected.size} selecionada{bulkSelected.size!==1?"s":""}
+                </span>
+                {[
+                  {label:"⏸ Pausar", bg:"#FFF3E0", color:"#854F0B", fn:()=>handleBulkStatus("PAUSADA")},
+                  {label:"▶ Ativar",  bg:"#E8F5E9", color:"#2E7D32", fn:()=>handleBulkStatus("ATIVA")},
+                  {label:"⬇ Exportar",bg:"rgba(255,255,255,0.12)",color:"#fff",fn:handleBulkExport},
+                  {label:"🗑 Excluir",bg:"#FFEBEE",color:"#C62828",fn:handleBulkDelete},
+                ].map(b => (
+                  <button key={b.label} onClick={b.fn} disabled={bulkLoading} style={{
+                    padding:"8px 16px", borderRadius:10, border:"none",
+                    background:b.bg, color:b.color, fontSize:13, fontWeight:700,
+                    cursor:"pointer", opacity:bulkLoading?0.5:1,
+                  }}>{b.label}</button>
+                ))}
               </div>
             )}
             </>}
