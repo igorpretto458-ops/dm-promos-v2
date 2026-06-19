@@ -668,6 +668,26 @@ function AbaMarketing({ promos }) {
   const [diaFiltro, setDiaFiltro] = useState(null); // null = todos
   const [categoriaFMkt, setCategoriaFMkt] = useState("TODAS");
 
+  // Carrega ações do Supabase na montagem
+  useEffect(() => {
+    supabase.from("mkt_acoes").select("*").then(({ data }) => {
+      if (!data) return;
+      const map = {};
+      data.forEach(row => {
+        map[row.id] = {
+          promo: { id: row.promo_id },
+          data: new Date(row.data + "T00:00:00"),
+          pushStatus: row.push_status || "",
+          storyStatus: row.story_status || "",
+          postStatus: row.post_status || "",
+          observacoes: row.observacoes || "",
+          proxima_atividade: row.proxima_atividade || "",
+        };
+      });
+      setAcoes(map);
+    });
+  }, []);
+
   // Promos filtradas por categoria
   const promosFiltradas = categoriaFMkt === "TODAS" ? promos : promos.filter(p => p.categoria === categoriaFMkt);
 
@@ -685,10 +705,21 @@ function AbaMarketing({ promos }) {
 
   const getAcao = (promoId, data) => acoes[chave(promoId, data)] || {};
 
-  const salvarAcao = (item) => {
+  const salvarAcao = async (item) => {
     const k = chave(item.promo.id, item.data);
     setAcoes(a => ({...a, [k]: item}));
     setModalItem(null);
+    await supabase.from("mkt_acoes").upsert({
+      id: k,
+      promo_id: item.promo.id,
+      data: item.data.toISOString().split("T")[0],
+      push_status: item.pushStatus || null,
+      story_status: item.storyStatus || null,
+      post_status: item.postStatus || null,
+      observacoes: item.observacoes || null,
+      proxima_atividade: item.proxima_atividade || null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "id" });
   };
 
   // Estatísticas da semana
