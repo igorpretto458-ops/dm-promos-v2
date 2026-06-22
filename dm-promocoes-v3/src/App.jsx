@@ -1722,7 +1722,66 @@ function ModalCRM({ rest, onClose, onSave, promosList }) {
                 <label style={{ fontSize:11, fontWeight:700, color:"#999", marginBottom:4, display:"block", textTransform:"uppercase" }}>Observações</label>
                 <textarea value={form.obs||""} onChange={e => setForm(f=>({...f,obs:e.target.value}))} style={{ ...inp, minHeight:80, resize:"vertical" }} />
               </div>
-            </div>
+
+              {/* PLANO COMERCIAL */}
+              <div style={{ gridColumn:"1/-1", background:"#FFF8F5", border:"1.5px solid #FFD5C2", borderRadius:14, padding:16, marginTop:4 }}>
+                <div style={{ fontSize:12, fontWeight:800, color:"#FF5000", textTransform:"uppercase", letterSpacing:0.5, marginBottom:12 }}>💼 Plano Comercial</div>
+                {/* Seletor de tipo */}
+                <div style={{ display:"flex", gap:8, marginBottom:14 }}>
+                  {[["exclusividade","⭐ Exclusividade"],["sem_exclusividade","🔓 Sem Exclusividade"]].map(([key,label]) => {
+                    const pc = form.plano_comercial || {};
+                    const sel = (pc.tipo || "exclusividade") === key;
+                    return (
+                      <button key={key} onClick={() => setForm(f => ({ ...f, plano_comercial: { ...(f.plano_comercial||{}), tipo: key }}))}
+                        style={{ flex:1, padding:"8px 10px", borderRadius:10, border:`2px solid ${sel ? "#FF5000" : "#E8E8E8"}`,
+                          background: sel ? "#FF5000" : "#fff", color: sel ? "#fff" : "#555",
+                          fontWeight:700, fontSize:12, cursor:"pointer" }}>
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {/* Campos editáveis */}
+                {(() => {
+                  const pc = form.plano_comercial || {};
+                  const tipo = pc.tipo || "exclusividade";
+                  const setPc = (key, val) => setForm(f => ({ ...f, plano_comercial: { ...(f.plano_comercial||{}), [key]: val }}));
+                  return (
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                      <div>
+                        <label style={{ fontSize:10, fontWeight:700, color:"#999", marginBottom:3, display:"block", textTransform:"uppercase" }}>Comissão Base (%)</label>
+                        <input type="number" step="0.1" value={pc.comissao_base ?? (tipo==="exclusividade" ? 12 : 15)}
+                          onChange={e => setPc("comissao_base", e.target.value)} style={inp} />
+                      </div>
+                      {tipo === "exclusividade" ? (
+                        <>
+                          <div>
+                            <label style={{ fontSize:10, fontWeight:700, color:"#999", marginBottom:3, display:"block", textTransform:"uppercase" }}>Threshold Vendas (R$)</label>
+                            <input type="number" step="100" value={pc.threshold_vendas ?? 2500}
+                              onChange={e => setPc("threshold_vendas", e.target.value)} style={inp} />
+                          </div>
+                          <div style={{ gridColumn:"1/-1" }}>
+                            <label style={{ fontSize:10, fontWeight:700, color:"#999", marginBottom:3, display:"block", textTransform:"uppercase" }}>Comissão Acima do Threshold (%)</label>
+                            <input type="number" step="0.1" value={pc.comissao_acima ?? 10}
+                              onChange={e => setPc("comissao_acima", e.target.value)} style={inp} />
+                          </div>
+                        </>
+                      ) : (
+                        <div>
+                          <label style={{ fontSize:10, fontWeight:700, color:"#999", marginBottom:3, display:"block", textTransform:"uppercase" }}>Repasse ao Usuário (%)</label>
+                          <input type="number" step="0.1" value={pc.repasse_usuario ?? 10}
+                            onChange={e => setPc("repasse_usuario", e.target.value)} style={inp} />
+                        </div>
+                      )}
+                      <div style={{ gridColumn:"1/-1" }}>
+                        <label style={{ fontSize:10, fontWeight:700, color:"#999", marginBottom:3, display:"block", textTransform:"uppercase" }}>Mensalidade (R$)</label>
+                        <input type="number" step="10" value={pc.mensalidade ?? ""}
+                          onChange={e => setPc("mensalidade", e.target.value)} style={inp} placeholder="Ex: 150" />
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>            </div>
           )}
           {tab === "atividades" && (
             <div>
@@ -1866,6 +1925,21 @@ function AbaCRM({ promosList }) {
                       <div style={{ fontSize:13, fontWeight:700, color:"#1A1A1A", marginBottom:3 }}>{r.nome}</div>
                       <div style={{ fontSize:11, color:"#999", marginBottom:8 }}>{r.cidade}{r.tipo_culinaria ? ` · ${r.tipo_culinaria}` : ""}</div>
                       {r.responsavel && <div style={{ fontSize:11, color:"#888", marginBottom:8 }}>👤 {r.responsavel}</div>}
+                      {/* Chip plano comercial */}
+                      {r.plano_comercial && r.plano_comercial.tipo && (
+                        <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginBottom:8 }}>
+                          <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:8,
+                            background: r.plano_comercial.tipo==="exclusividade" ? "#FFF0EB" : "#EEF2FF",
+                            color: r.plano_comercial.tipo==="exclusividade" ? "#FF5000" : "#5C6BC0" }}>
+                            {r.plano_comercial.tipo==="exclusividade" ? `⭐ Excl. ${r.plano_comercial.comissao_base||12}%` : `🔓 Sem Excl. ${r.plano_comercial.comissao_base||15}%`}
+                          </span>
+                          {r.plano_comercial.mensalidade && (
+                            <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:8, background:"#F5F5F5", color:"#666" }}>
+                              R${r.plano_comercial.mensalidade}/mês
+                            </span>
+                          )}
+                        </div>
+                      )}
                       {r.estagio === "onboarding" && (
                         <div>
                           <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
