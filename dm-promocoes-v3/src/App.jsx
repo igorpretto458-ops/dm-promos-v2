@@ -1563,6 +1563,337 @@ function AbaVisitas() {
   );
 }
 
+// ── CRM ───────────────────────────────────────────────────────────────────
+
+const CRM_ESTAGIOS = [
+  { key:"prospeccao",    label:"🔍 Prospecção",      cor:"#9E9E9E" },
+  { key:"contato",       label:"📞 Contato Inicial",  cor:"#2196F3" },
+  { key:"reuniao",       label:"🤝 Reunião",           cor:"#9C27B0" },
+  { key:"negociacao",    label:"📋 Negociação",        cor:"#FF9800" },
+  { key:"onboarding",    label:"🚀 Onboarding",        cor:"#00BCD4" },
+  { key:"ativo",         label:"⭐ Ativo",             cor:"#4CAF50" },
+  { key:"encantado",     label:"💎 Encantado",         cor:"#FF5000" },
+  { key:"churn",         label:"⚠️ Risco Churn",       cor:"#F44336" },
+];
+
+const CHECKLIST_ITEMS = [
+  { fase:"Setup Técnico", items:[
+    { key:"cadastrado",    label:"Restaurante cadastrado na plataforma" },
+    { key:"cardapio",      label:"Cardápio completo com fotos" },
+    { key:"horarios",      label:"Horários de funcionamento configurados" },
+    { key:"raio",          label:"Raio de entrega definido" },
+    { key:"taxa",          label:"Taxa de entrega configurada" },
+  ]},
+  { fase:"Primeira Promoção", items:[
+    { key:"reuniao_promo", label:"Reunião de apresentação das ferramentas" },
+    { key:"promo_criada",  label:"Primeira promoção criada" },
+    { key:"promo_revisada",label:"Promoção revisada e aprovada" },
+    { key:"promo_ativa",   label:"Promoção ativada na plataforma" },
+    { key:"print_enviado", label:"Print da promo enviado ao restaurante" },
+  ]},
+  { fase:"Encantamento", items:[
+    { key:"treinamento",   label:"Treinamento do proprietário no painel" },
+    { key:"meta_definida", label:"Meta de pedidos definida" },
+    { key:"relatorio",     label:"Primeiro relatório de performance compartilhado" },
+    { key:"promos_fixas",  label:"Estratégia de promos fixas da semana definida" },
+    { key:"grupo",         label:"Restaurante no grupo de acompanhamento" },
+  ]},
+  { fase:"Ativação Plena", items:[
+    { key:"duas_promos",   label:"Mínimo 2 promos ativas na semana" },
+    { key:"campanha",      label:"Participação em campanha da plataforma" },
+    { key:"nps",           label:"NPS coletado (satisfação com DM)" },
+    { key:"visita_agendada",label:"Próxima visita agendada" },
+  ]},
+];
+
+const TIPO_ATIVIDADE = {
+  ligacao:  { icon:"📞", label:"Ligação" },
+  reuniao:  { icon:"🤝", label:"Reunião" },
+  email:    { icon:"📧", label:"E-mail" },
+  whatsapp: { icon:"💬", label:"WhatsApp" },
+  visita:   { icon:"📍", label:"Visita" },
+  nota:     { icon:"📝", label:"Nota" },
+};
+
+function checklistProgress(checklist) {
+  const allItems = CHECKLIST_ITEMS.flatMap(f => f.items);
+  const done = allItems.filter(i => checklist?.[i.key]).length;
+  return { done, total: allItems.length, pct: Math.round((done / allItems.length) * 100) };
+}
+
+function ModalCRM({ rest, onClose, onSave, promosList }) {
+  const [tab, setTab] = useState("checklist");
+  const [form, setForm] = useState({ ...rest });
+  const [atividades, setAtividades] = useState([]);
+  const [novaAtiv, setNovaAtiv] = useState({ tipo:"nota", descricao:"", responsavel:"" });
+  const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    if (!rest.id || rest.id.startsWith("NOVO")) return;
+    supabase.from("crm_atividades").select("*").eq("restaurante_id", rest.id)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => setAtividades(data || []));
+  }, [rest.id]);
+
+  const toggleCheck = (key) => {
+    setForm(f => ({ ...f, checklist: { ...f.checklist, [key]: !f.checklist?.[key] } }));
+  };
+
+  const addAtividade = async () => {
+    if (!novaAtiv.descricao.trim()) return;
+    const row = { restaurante_id: rest.id, tipo: novaAtiv.tipo, descricao: novaAtiv.descricao, responsavel: novaAtiv.responsavel };
+    const { data } = await supabase.from("crm_atividades").insert(row).select().single();
+    if (data) setAtividades(a => [data, ...a]);
+    setNovaAtiv({ tipo:"nota", descricao:"", responsavel:"" });
+  };
+
+  const salvar = async () => {
+    setSalvando(true);
+    await onSave({ ...form, updated_at: new Date().toISOString() });
+    setSalvando(false);
+  };
+
+  const { done, total, pct } = checklistProgress(form.checklist);
+  const promosRest = promosList.filter(p => p.restaurante?.toLowerCase() === rest.nome?.toLowerCase());
+  const inp = { border:"1.5px solid #E8E8E8", borderRadius:10, padding:"8px 12px", fontSize:13, background:"#FAFAFA", color:"#333", outline:"none", fontFamily:"inherit", width:"100%", boxSizing:"border-box" };
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, padding:16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:"#fff", borderRadius:24, width:"100%", maxWidth:620, maxHeight:"92vh", overflowY:"auto", boxShadow:"0 20px 60px rgba(0,0,0,0.2)" }}>
+        <div style={{ padding:"20px 24px 0", borderBottom:"1px solid #F0F0F0" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:12 }}>
+            <div>
+              <div style={{ fontSize:18, fontWeight:800, color:"#1A1A1A" }}>{form.nome || "Novo Restaurante"}</div>
+              <div style={{ fontSize:12, color:"#999", marginTop:2 }}>{form.cidade} · {form.tipo_culinaria}</div>
+            </div>
+            <button onClick={onClose} style={{ background:"none", border:"none", fontSize:22, cursor:"pointer", color:"#999" }}>×</button>
+          </div>
+          <div style={{ marginBottom:12 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+              <span style={{ fontSize:11, fontWeight:700, color:"#FF5000" }}>Onboarding {pct}% completo</span>
+              <span style={{ fontSize:11, color:"#999" }}>{done}/{total} itens</span>
+            </div>
+            <div style={{ height:6, background:"#F0F0F0", borderRadius:6 }}>
+              <div style={{ height:6, background:"#FF5000", borderRadius:6, width:`${pct}%`, transition:"width 0.3s" }} />
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:4 }}>
+            {[["checklist","✅ Checklist"],["info","📋 Info"],["atividades","📞 Atividades"],["promos","🏷️ Promos"]].map(([key,label]) => (
+              <button key={key} onClick={() => setTab(key)} style={{
+                padding:"7px 14px", borderRadius:"8px 8px 0 0", border:"none", cursor:"pointer", fontSize:12, fontWeight:700,
+                background: tab===key ? "#fff" : "transparent",
+                color: tab===key ? "#FF5000" : "#999",
+                borderBottom: tab===key ? "2px solid #FF5000" : "2px solid transparent",
+              }}>{label}</button>
+            ))}
+          </div>
+        </div>
+        <div style={{ padding:"20px 24px" }}>
+          {tab === "checklist" && (
+            <div>
+              {CHECKLIST_ITEMS.map(fase => (
+                <div key={fase.fase} style={{ marginBottom:20 }}>
+                  <div style={{ fontSize:12, fontWeight:800, color:"#FF5000", textTransform:"uppercase", letterSpacing:0.5, marginBottom:8 }}>{fase.fase}</div>
+                  {fase.items.map(item => (
+                    <label key={item.key} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", borderBottom:"1px solid #F9F9F9", cursor:"pointer" }}>
+                      <input type="checkbox" checked={!!form.checklist?.[item.key]} onChange={() => toggleCheck(item.key)} style={{ width:16, height:16, accentColor:"#FF5000", cursor:"pointer", flexShrink:0 }} />
+                      <span style={{ fontSize:13, color: form.checklist?.[item.key] ? "#999" : "#333", textDecoration: form.checklist?.[item.key] ? "line-through" : "none" }}>{item.label}</span>
+                    </label>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+          {tab === "info" && (
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+              {[["nome","Nome *","text"],["cidade","Cidade","text"],["tipo_culinaria","Tipo de Culinária","text"],["telefone","Telefone","text"],["email","E-mail","email"],["responsavel","Responsável DM","text"]].map(([key,label,type]) => (
+                <div key={key} style={{ gridColumn: key==="nome" ? "1/-1" : "auto" }}>
+                  <label style={{ fontSize:11, fontWeight:700, color:"#999", marginBottom:4, display:"block", textTransform:"uppercase" }}>{label}</label>
+                  <input type={type} value={form[key]||""} onChange={e => setForm(f=>({...f,[key]:e.target.value}))} style={inp} />
+                </div>
+              ))}
+              <div style={{ gridColumn:"1/-1" }}>
+                <label style={{ fontSize:11, fontWeight:700, color:"#999", marginBottom:4, display:"block", textTransform:"uppercase" }}>Estágio</label>
+                <select value={form.estagio||"prospeccao"} onChange={e => setForm(f=>({...f,estagio:e.target.value}))} style={inp}>
+                  {CRM_ESTAGIOS.map(e => <option key={e.key} value={e.key}>{e.label}</option>)}
+                </select>
+              </div>
+              <div style={{ gridColumn:"1/-1" }}>
+                <label style={{ fontSize:11, fontWeight:700, color:"#999", marginBottom:4, display:"block", textTransform:"uppercase" }}>Observações</label>
+                <textarea value={form.obs||""} onChange={e => setForm(f=>({...f,obs:e.target.value}))} style={{ ...inp, minHeight:80, resize:"vertical" }} />
+              </div>
+            </div>
+          )}
+          {tab === "atividades" && (
+            <div>
+              <div style={{ background:"#FAFAFA", borderRadius:12, padding:14, marginBottom:16, border:"1px solid #F0F0F0" }}>
+                <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+                  <select value={novaAtiv.tipo} onChange={e => setNovaAtiv(a=>({...a,tipo:e.target.value}))} style={{ ...inp, width:"auto", minWidth:130 }}>
+                    {Object.entries(TIPO_ATIVIDADE).map(([k,v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+                  </select>
+                  <input placeholder="Responsável" value={novaAtiv.responsavel} onChange={e => setNovaAtiv(a=>({...a,responsavel:e.target.value}))} style={inp} />
+                </div>
+                <div style={{ display:"flex", gap:8 }}>
+                  <input placeholder="Descreva a atividade..." value={novaAtiv.descricao} onChange={e => setNovaAtiv(a=>({...a,descricao:e.target.value}))} onKeyDown={e => e.key==="Enter" && addAtividade()} style={{ ...inp, flex:1 }} />
+                  <button onClick={addAtividade} style={{ padding:"8px 16px", borderRadius:10, border:"none", background:"#FF5000", color:"#fff", fontWeight:700, cursor:"pointer", whiteSpace:"nowrap" }}>+ Add</button>
+                </div>
+              </div>
+              {atividades.length === 0
+                ? <div style={{ textAlign:"center", padding:"30px 0", color:"#ccc", fontSize:13 }}>Nenhuma atividade registrada ainda</div>
+                : atividades.map(a => (
+                  <div key={a.id} style={{ display:"flex", gap:10, padding:"10px 0", borderBottom:"1px solid #F5F5F5" }}>
+                    <div style={{ fontSize:20, flexShrink:0, marginTop:2 }}>{TIPO_ATIVIDADE[a.tipo]?.icon || "📝"}</div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:13, color:"#333" }}>{a.descricao}</div>
+                      <div style={{ fontSize:11, color:"#bbb", marginTop:2 }}>
+                        {a.responsavel && <span>{a.responsavel} · </span>}
+                        {new Date(a.created_at).toLocaleDateString("pt-BR", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" })}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              }
+            </div>
+          )}
+          {tab === "promos" && (
+            <div>
+              {promosRest.length === 0
+                ? <div style={{ textAlign:"center", padding:"30px 0", color:"#ccc", fontSize:13 }}>Nenhuma promoção cadastrada para este restaurante</div>
+                : promosRest.map(p => (
+                  <div key={p.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 0", borderBottom:"1px solid #F5F5F5" }}>
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:700, color:"#333" }}>{p.produto}</div>
+                      <div style={{ fontSize:11, color:"#999" }}>{p.tipo} · {p.id}</div>
+                    </div>
+                    <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:10, background: p.status==="ATIVA"?"#E8F5E9":"#FFF3E0", color: p.status==="ATIVA"?"#2E7D32":"#E65100" }}>{p.status}</span>
+                  </div>
+                ))
+              }
+            </div>
+          )}
+          <button onClick={salvar} disabled={salvando} style={{ marginTop:20, width:"100%", padding:"12px", borderRadius:12, border:"none", background:"#FF5000", color:"#fff", fontWeight:700, fontSize:14, cursor:"pointer", opacity:salvando?0.7:1 }}>
+            {salvando ? "Salvando..." : "Salvar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AbaCRM({ promosList }) {
+  const [restaurantes, setRestaurantes] = useState([]);
+  const [modalRest, setModalRest] = useState(null);
+  const [dragId, setDragId] = useState(null);
+  const [busca, setBusca] = useState("");
+
+  useEffect(() => {
+    supabase.from("crm_restaurantes").select("*").order("created_at", { ascending: false })
+      .then(({ data }) => setRestaurantes(data || []));
+  }, []);
+
+  const salvarRestaurante = async (form) => {
+    const isNovo = !form.id || form.id.startsWith("NOVO");
+    const row = { ...form };
+    if (isNovo) delete row.id;
+    const { data } = isNovo
+      ? await supabase.from("crm_restaurantes").insert(row).select().single()
+      : await supabase.from("crm_restaurantes").update(row).eq("id", form.id).select().single();
+    if (data) setRestaurantes(r => isNovo ? [data, ...r] : r.map(x => x.id === data.id ? data : x));
+    setModalRest(null);
+  };
+
+  const moverEstagio = async (id, novoEstagio) => {
+    setRestaurantes(r => r.map(x => x.id === id ? { ...x, estagio: novoEstagio } : x));
+    await supabase.from("crm_restaurantes").update({ estagio: novoEstagio, updated_at: new Date().toISOString() }).eq("id", id);
+  };
+
+  const restFiltrados = restaurantes.filter(r => !busca || r.nome?.toLowerCase().includes(busca.toLowerCase()) || r.cidade?.toLowerCase().includes(busca.toLowerCase()));
+  const totalOnboarding = restaurantes.filter(r => r.estagio === "onboarding").length;
+  const totalAtivos = restaurantes.filter(r => r.estagio === "ativo" || r.estagio === "encantado").length;
+  const totalChurn = restaurantes.filter(r => r.estagio === "churn").length;
+
+  return (
+    <div>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20, flexWrap:"wrap", gap:12 }}>
+        <div>
+          <div style={{ fontSize:22, fontWeight:800, color:"#1A1A1A" }}>CRM · Jornada de Encantamento</div>
+          <div style={{ fontSize:13, color:"#999", marginTop:2 }}>Acompanhe cada restaurante da prospecção ao encantamento</div>
+        </div>
+        <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+          <input placeholder="🔍 Buscar restaurante..." value={busca} onChange={e => setBusca(e.target.value)}
+            style={{ border:"1.5px solid #E8E8E8", borderRadius:10, padding:"8px 14px", fontSize:13, outline:"none", minWidth:200 }} />
+          <button onClick={() => setModalRest({ nome:"", cidade:"", tipo_culinaria:"", telefone:"", email:"", responsavel:"", estagio:"prospeccao", checklist:{}, obs:"", id:"NOVO-"+Date.now() })}
+            style={{ padding:"9px 18px", borderRadius:10, border:"none", background:"#FF5000", color:"#fff", fontWeight:700, cursor:"pointer", fontSize:13, whiteSpace:"nowrap" }}>
+            + Novo Restaurante
+          </button>
+        </div>
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:12, marginBottom:24 }}>
+        {[
+          { label:"Total",       val:restaurantes.length, color:"#FF5000", bg:"#FFF0EB", icon:"🍔" },
+          { label:"Onboarding",  val:totalOnboarding,     color:"#00BCD4", bg:"#E0F7FA", icon:"🚀" },
+          { label:"Ativos",      val:totalAtivos,          color:"#4CAF50", bg:"#E8F5E9", icon:"⭐" },
+          { label:"Risco Churn", val:totalChurn,           color:"#F44336", bg:"#FFEBEE", icon:"⚠️" },
+        ].map(k => (
+          <div key={k.label} style={{ background:k.bg, borderRadius:14, padding:"14px 16px" }}>
+            <div style={{ fontSize:20 }}>{k.icon}</div>
+            <div style={{ fontSize:26, fontWeight:800, color:k.color, marginTop:4 }}>{k.val}</div>
+            <div style={{ fontSize:11, color:"#777", fontWeight:600, marginTop:2 }}>{k.label}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display:"flex", gap:14, overflowX:"auto", paddingBottom:16 }}>
+        {CRM_ESTAGIOS.map(estagio => {
+          const cards = restFiltrados.filter(r => (r.estagio || "prospeccao") === estagio.key);
+          return (
+            <div key={estagio.key}
+              onDragOver={e => e.preventDefault()}
+              onDrop={() => { if (dragId) moverEstagio(dragId, estagio.key); setDragId(null); }}
+              style={{ minWidth:220, maxWidth:240, flexShrink:0 }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, padding:"8px 12px", background:"#fff", borderRadius:12, border:`2px solid ${estagio.cor}20` }}>
+                <span style={{ fontSize:12, fontWeight:800, color:estagio.cor }}>{estagio.label}</span>
+                <span style={{ fontSize:11, fontWeight:700, background:`${estagio.cor}20`, color:estagio.cor, borderRadius:10, padding:"2px 8px" }}>{cards.length}</span>
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:8, minHeight:60 }}>
+                {cards.map(r => {
+                  const { pct } = checklistProgress(r.checklist);
+                  return (
+                    <div key={r.id} draggable
+                      onDragStart={() => setDragId(r.id)}
+                      onDragEnd={() => setDragId(null)}
+                      onClick={() => setModalRest(r)}
+                      style={{ background:"#fff", borderRadius:14, padding:"12px 14px", border:"1px solid #F0F0F0", cursor:"pointer", borderLeft:`3px solid ${estagio.cor}`, boxShadow: dragId===r.id ? "0 4px 16px rgba(0,0,0,0.15)" : "0 1px 4px rgba(0,0,0,0.05)", opacity: dragId===r.id ? 0.7 : 1, transition:"all 0.1s" }}>
+                      <div style={{ fontSize:13, fontWeight:700, color:"#1A1A1A", marginBottom:3 }}>{r.nome}</div>
+                      <div style={{ fontSize:11, color:"#999", marginBottom:8 }}>{r.cidade}{r.tipo_culinaria ? ` · ${r.tipo_culinaria}` : ""}</div>
+                      {r.responsavel && <div style={{ fontSize:11, color:"#888", marginBottom:8 }}>👤 {r.responsavel}</div>}
+                      {r.estagio === "onboarding" && (
+                        <div>
+                          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+                            <span style={{ fontSize:10, color:"#bbb" }}>Onboarding</span>
+                            <span style={{ fontSize:10, fontWeight:700, color:"#FF5000" }}>{pct}%</span>
+                          </div>
+                          <div style={{ height:4, background:"#F0F0F0", borderRadius:4 }}>
+                            <div style={{ height:4, background:"#FF5000", borderRadius:4, width:`${pct}%` }} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {cards.length === 0 && (
+                  <div style={{ border:`2px dashed ${estagio.cor}30`, borderRadius:12, padding:"20px 12px", textAlign:"center", color:"#ccc", fontSize:11 }}>Arraste aqui</div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {modalRest && <ModalCRM rest={modalRest} onClose={() => setModalRest(null)} onSave={salvarRestaurante} promosList={promosList} />}
+    </div>
+  );
+}
+
+
 // ── App principal ──────────────────────────────────────────────────────────
 export default function App() {
   const [lista, setLista]       = useState([]);
@@ -1693,7 +2024,7 @@ export default function App() {
             <div style={{ fontSize:11, color:"#FF5000", fontWeight:700, letterSpacing:1, textTransform:"uppercase" }}>Gestão de Promoções</div>
           </div>
           <div style={{ marginLeft:"auto", display:"flex", gap:4 }}>
-            {[["promocoes","🏷️ Promoções"],["marketing","📣 Marketing"],["dashboard","📊 Dashboard"],["visitas","📍 Visitas"]].map(([key, label]) => (
+            {[["promocoes","🏷️ Promoções"],["marketing","📣 Marketing"],["dashboard","📊 Dashboard"],["crm","🤝 CRM"],["visitas","📍 Visitas"]].map(([key, label]) => (
               <button key={key} onClick={() => setAba(key)} style={tab(aba === key)}>{label}</button>
             ))}
           </div>
@@ -1711,6 +2042,10 @@ export default function App() {
         {!loading && <>
 
         {/* ── VISITAS ── */}
+        
+        {/* ── CRM ── */}
+        {aba === "crm" && <AbaCRM promosList={lista} />}
+
         {aba === "visitas" && <AbaVisitas />}
 
         {/* ── MARKETING ── */}
